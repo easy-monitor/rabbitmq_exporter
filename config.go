@@ -14,9 +14,9 @@ import (
 var (
 	config        rabbitExporterConfig
 	defaultConfig = rabbitExporterConfig{
-		RabbitURL:          "http://192.168.100.163:15672",
-		RabbitUsername:     "easyops",
-		RabbitPassword:     "rabbitmqDevEasyops",
+		RabbitURL:          "http://127.0.0.1:15672",
+		RabbitUsername:     "guest",
+		RabbitPassword:     "guest",
 		PublishPort:        "9419",
 		PublishAddr:        "",
 		OutputFormat:       "TTY", //JSON
