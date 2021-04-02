@@ -3,13 +3,18 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"gopkg.in/yaml.v2"
 
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -81,8 +86,13 @@ func main() {
 		"MAX_QUEUES":          config.MaxQueues,
 		//		"RABBIT_PASSWORD": config.RABBIT_PASSWORD,
 	}).Info("Active Configuration")
+	conf, err := loadConfig()
+	if err != nil {
+		panic(err.Error())
+	}
 
 	handler := http.NewServeMux()
+	handler.Handle("/scrape", handlerForScrape(conf))
 	handler.Handle("/metrics", promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{}))
 	handler.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
@@ -117,6 +127,77 @@ func main() {
 		log.Fatal(err)
 	}
 	cancel()
+}
+
+func loadConfig() (*Modules, error) {
+	path, _ := os.Getwd()
+	path = filepath.Join(path, "conf.yml")
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, errors.New("read conf.yml fail:" + path)
+	}
+	conf := new(Modules)
+	err = yaml.Unmarshal(data, conf)
+	if err != nil {
+		return nil, errors.New("unmarshal conf.yml fail")
+	}
+	return conf, nil
+}
+
+func handlerForScrape(modules *Modules) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		backupsUrl := config.RabbitURL
+		backupsUsername := config.RabbitUsername
+		backupsPassword := config.RabbitPassword
+		uri := r.URL.Query()
+		target := uri.Get("target")
+		module := uri.Get("module")
+		if target == "" || module == "" {
+			_, _ = w.Write([]byte("args error"))
+			return
+		}
+		var username string
+		var password string
+		for i := 0; i < len(modules.Modules); i++ {
+			if modules.Modules[i].Name == module {
+				username = modules.Modules[i].Username
+				password = modules.Modules[i].Password
+				break
+			}
+		}
+		if username == "" || password == "" {
+			_, _ = w.Write([]byte("module not found in conf.yml"))
+			return
+		}
+		if !strings.HasPrefix(target, "http://") {
+			target = "http://" + target
+		}
+		fmt.Println(target)
+
+		config.RabbitURL = target
+		config.RabbitUsername = username
+		config.RabbitPassword = password
+
+		exporter := newExporter()
+
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(exporter)
+
+		gatherers := prometheus.Gatherers{}
+		gatherers = append(gatherers, prometheus.DefaultGatherer)
+		gatherers = append(gatherers, registry)
+
+		// Delegate http serving to Prometheus client library, which will call collector.Collect.
+		h := promhttp.HandlerFor(gatherers, promhttp.HandlerOpts{
+			ErrorHandling: promhttp.ContinueOnError,
+		})
+
+		h.ServeHTTP(w, r)
+		config.RabbitURL = backupsUrl
+		config.RabbitUsername = backupsUsername
+		config.RabbitPassword = backupsPassword
+
+	})
 }
 
 func getLogLevel() log.Level {

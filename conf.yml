@@ -1,0 +1,7 @@
+module:
+  - name: rabbitmq_exporter
+    username: easyops
+    password: rabbitmqDevEasyops
+  - name: rabbitmq_local
+    username: monitor
+    password: easyops

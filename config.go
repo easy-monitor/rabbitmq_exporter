@@ -14,9 +14,9 @@ import (
 var (
 	config        rabbitExporterConfig
 	defaultConfig = rabbitExporterConfig{
-		RabbitURL:          "http://127.0.0.1:15672",
-		RabbitUsername:     "guest",
-		RabbitPassword:     "guest",
+		RabbitURL:          "http://192.168.100.163:15672",
+		RabbitUsername:     "easyops",
+		RabbitPassword:     "rabbitmqDevEasyops",
 		PublishPort:        "9419",
 		PublishAddr:        "",
 		OutputFormat:       "TTY", //JSON
@@ -61,6 +61,16 @@ type rabbitExporterConfig struct {
 	EnabledExporters         []string            `json:"enabled_exporters"`
 	Timeout                  int                 `json:"timeout"`
 	MaxQueues                int                 `json:"max_queues"`
+}
+
+type Modules struct {
+	Modules []*Module `yaml:"module",json:"module"`
+}
+
+type Module struct {
+	Name     string `yaml:"name",json:"name"`
+	Username string `yaml:"username",json:"username"`
+	Password string `yaml:"password",json:"password"`
 }
 
 type rabbitCapability string
